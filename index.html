@@ -95,8 +95,9 @@
             max-height: 80vh;
             background-color: #000;
             border-radius: 12px;
-            overflow: auto;
+            overflow: hidden;
             user-select: none;
+            -webkit-user-drag: none;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -119,6 +120,9 @@
             height: 100%;
             display: block;
             object-fit: contain;
+            pointer-events: none; /* Impede que o vídeo intercepte ou seja arrastado */
+            user-select: none;
+            -webkit-user-drag: none;
         }
         
         .click-overlay {
@@ -128,10 +132,12 @@
             width: 100%;
             height: 100%;
             z-index: 10;
-            cursor: none !important;
+            cursor: crosshair;
+            user-select: none;
+            -webkit-user-drag: none;
         }
 
-        /* Botão Flutuante Reduzido (Canto Inferior Direito) */
+        /* Botão Flutuante (Canto Inferior Direito) */
         .floating-menu-btn {
             position: fixed;
             bottom: 12px;
@@ -241,7 +247,7 @@
         <div id="click-overlay" class="click-overlay" style="display: none;"></div>
     </div>
 
-    <!-- BOTÃO FLUTUANTE DISCRETO EM TELA CHEIA (CANTO INFERIOR DIREITO) -->
+    <!-- BOTÃO FLUTUANTE EM TELA CHEIA (CANTO INFERIOR DIREITO) -->
     <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Opções</button>
     <div class="floating-toolbar" id="floating-toolbar">
         <button class="btn" id="float-mouse-btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
@@ -265,8 +271,10 @@
     let isAudioEnabled = true;
     let isFullscreen = false;
 
+    let isMouseDown = false;
     let touchHoldTimer = null;
-    let lastTapTime = 0;
+    let singleTapTimer = null;
+    let tapCount = 0;
     let isMultiTouch = false;
 
     const videoElement = document.getElementById('video-player');
@@ -400,19 +408,37 @@
     }
 
     function setupControls(conn) {
-        // --- EVENTOS DE COMPUTADOR (MOUSE) ---
+        // --- PREVINE O ARRASTE PADRÃO DE IMAGEM/VÍDEO DO NAVEGADOR ---
+        clickOverlay.addEventListener('dragstart', (e) => e.preventDefault());
+
+        // --- ARRASTAR E SELECIONAR (DRAG & DROP REAL NO PC) ---
+        clickOverlay.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (e.button === 0) {
+                isMouseDown = true;
+                const pos = getScaledCoordinates(e);
+                conn.send({ type: 'MOUSE_DOWN', x: pos.x, y: pos.y, button: 'left' });
+            }
+        });
+
         clickOverlay.addEventListener('mousemove', (e) => {
-            if (!isContinuousMouse) return;
+            e.preventDefault();
+            if (!isContinuousMouse && !isMouseDown) return;
             const pos = getScaledCoordinates(e);
             conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
         });
 
-        clickOverlay.addEventListener('click', (e) => {
-            const pos = getScaledCoordinates(e);
-            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false });
+        clickOverlay.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            if (e.button === 0) {
+                isMouseDown = false;
+                const pos = getScaledCoordinates(e);
+                conn.send({ type: 'MOUSE_UP', x: pos.x, y: pos.y, button: 'left' });
+            }
         });
 
         clickOverlay.addEventListener('dblclick', (e) => {
+            e.preventDefault();
             const pos = getScaledCoordinates(e);
             conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
         });
@@ -423,11 +449,12 @@
             conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
         });
 
-        // --- EVENTOS DE CELULAR (TOUCH COM DETECÇÃO DE DUPLO CLIQUE) ---
+        // --- CONTROLE DE TOQUE (CELULAR) ---
         clickOverlay.addEventListener('touchstart', (e) => {
             if (e.touches.length > 1) {
                 isMultiTouch = true;
                 clearTimeout(touchHoldTimer);
+                clearTimeout(singleTapTimer);
                 return;
             }
 
@@ -435,7 +462,7 @@
             const touch = e.touches[0];
             const pos = getScaledCoordinates(touch);
 
-            // Clique Direito ao segurar por 0.5s
+            // Clique Direito ao segurar por 500ms
             touchHoldTimer = setTimeout(() => {
                 if (!isMultiTouch) {
                     conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
@@ -459,24 +486,25 @@
 
         clickOverlay.addEventListener('touchend', (e) => {
             clearTimeout(touchHoldTimer);
-            if (!isMultiTouch) {
-                const touch = e.changedTouches[0];
-                const pos = getScaledCoordinates(touch);
-                const currentTime = new Date().getTime();
-                const tapLength = currentTime - lastTapTime;
+            if (isMultiTouch) return;
 
-                // Se der 2 toques rápidos (em menos de 300ms) = DUPLO CLIQUE
-                if (tapLength < 300 && tapLength > 0) {
-                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
-                } else {
-                    // Toque simples = CLIQUE ÚNICO (Apenas Seleciona)
+            const touch = e.changedTouches[0];
+            const pos = getScaledCoordinates(touch);
+            tapCount++;
+
+            if (tapCount === 1) {
+                singleTapTimer = setTimeout(() => {
                     conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false });
-                }
-                lastTapTime = currentTime;
+                    tapCount = 0;
+                }, 220);
+            } else if (tapCount === 2) {
+                clearTimeout(singleTapTimer);
+                conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
+                tapCount = 0;
             }
         });
 
-        // --- CONTROLE DE TECLADO (FÍSICO E VIRTUAL) ---
+        // --- CAPTURA AVANÇADA DE TECLADO E ATALHOS (Ctrl+A, Ctrl+C, Shift+Setas) ---
         hiddenInput.addEventListener('input', (e) => {
             if (e.data) {
                 conn.send({ type: 'TEXT_INPUT', text: e.data });
@@ -487,8 +515,30 @@
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
 
-            // Envia teclas pressionadas no PC cliente
-            conn.send({ type: 'KEY_PRESS', key: e.key });
+            // Previne atalhos locais do navegador (ex: Ctrl+A não seleciona o HTML local)
+            if (e.ctrlKey || e.metaKey || (e.shiftKey && e.key.startsWith('Arrow'))) {
+                e.preventDefault();
+            }
+
+            // Envia estado de pressão contínua para modificadoras
+            if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+                conn.send({ type: 'KEY_TOGGLE', key: e.key, state: 'down' });
+            }
+
+            conn.send({
+                type: 'KEY_PRESS',
+                key: e.key,
+                ctrlKey: e.ctrlKey,
+                altKey: e.altKey,
+                shiftKey: e.shiftKey,
+                metaKey: e.metaKey
+            });
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+                conn.send({ type: 'KEY_TOGGLE', key: e.key, state: 'up' });
+            }
         });
     }
 
