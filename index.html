@@ -79,10 +79,10 @@
     <h2>Acesso Remoto Direto</h2>
     <br>
 
-    <!-- Formutário de Login -->
+    <!-- Formulário de Login -->
     <div id="login-box" class="login-box">
-        <label>IP / Servidor + Porta:</label>
-        <input type="text" id="ip-address" placeholder="ex: localhost:8080 ou 192.168.1.15:8080" value="localhost:8080">
+        <label>Link do E-mail ou IP / Servidor:</label>
+        <input type="text" id="ip-address" placeholder="ex: happy-fox-82.loca.lt ou localhost:8080" value="">
         
         <label>ID do Computador:</label>
         <input type="text" id="device-id" placeholder="ID" value="Renan">
@@ -116,8 +116,23 @@
         const deviceId = document.getElementById('device-id').value.trim();
         const password = document.getElementById('device-password').value.trim();
 
+        if (!serverUrl) {
+            statusEl.innerText = "❌ Por favor, informe o link ou IP no primeiro campo.";
+            return;
+        }
+
+        // Limpa prefixos de HTTP/HTTPS se colados acidentalmente
+        serverUrl = serverUrl.replace('https://', '').replace('http://', '');
+
+        // Trata o protocolo do WebSocket automaticamente:
+        // Se for LocalTunnel (.loca.lt) ou domínio remoto, usa wss:// (seguro)
+        // Se for IP local ou localhost, usa ws://
         if (!serverUrl.startsWith('ws://') && !serverUrl.startsWith('wss://')) {
-            serverUrl = 'ws://' + serverUrl;
+            if (serverUrl.includes('loca.lt') || serverUrl.includes('ngrok') || !serverUrl.includes('localhost')) {
+                serverUrl = 'wss://' + serverUrl;
+            } else {
+                serverUrl = 'ws://' + serverUrl;
+            }
         }
 
         statusEl.innerText = "Conectando ao servidor (" + serverUrl + ")...";
@@ -125,12 +140,12 @@
         try {
             ws = new WebSocket(serverUrl);
         } catch(e) {
-            statusEl.innerText = "Erro no formato do endereço de IP/Porta.";
+            statusEl.innerText = "❌ Erro no formato do endereço de IP/Servidor: " + e.message;
             return;
         }
 
         ws.onopen = () => {
-            statusEl.innerText = "Conectado! Enviando autenticação...";
+            statusEl.innerText = "Conectado ao servidor! Enviando senha...";
             ws.send(JSON.stringify({ type: 'AUTH', deviceId: deviceId, password: password }));
         };
 
@@ -150,7 +165,7 @@
         };
 
         ws.onerror = (err) => { 
-            statusEl.innerText = "❌ Falha ao conectar no servidor. O app.js está rodando?"; 
+            statusEl.innerText = "❌ Falha ao conectar. Verifique se o endereço está correto e o app.js está rodando."; 
         };
         ws.onclose = () => { 
             statusEl.innerText = "⚠️ Conexão com o computador encerrada."; 
