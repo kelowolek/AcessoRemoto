@@ -120,7 +120,7 @@
             height: 100%;
             display: block;
             object-fit: contain;
-            pointer-events: none; /* Impede que o vídeo intercepte ou seja arrastado */
+            pointer-events: none;
             user-select: none;
             -webkit-user-drag: none;
         }
@@ -132,7 +132,7 @@
             width: 100%;
             height: 100%;
             z-index: 10;
-            cursor: crosshair;
+            cursor: default; /* Seta padrão do mouse sem o '+' */
             user-select: none;
             -webkit-user-drag: none;
         }
@@ -247,7 +247,6 @@
         <div id="click-overlay" class="click-overlay" style="display: none;"></div>
     </div>
 
-    <!-- BOTÃO FLUTUANTE EM TELA CHEIA (CANTO INFERIOR DIREITO) -->
     <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Opções</button>
     <div class="floating-toolbar" id="floating-toolbar">
         <button class="btn" id="float-mouse-btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
@@ -408,10 +407,8 @@
     }
 
     function setupControls(conn) {
-        // --- PREVINE O ARRASTE PADRÃO DE IMAGEM/VÍDEO DO NAVEGADOR ---
         clickOverlay.addEventListener('dragstart', (e) => e.preventDefault());
 
-        // --- ARRASTAR E SELECIONAR (DRAG & DROP REAL NO PC) ---
         clickOverlay.addEventListener('mousedown', (e) => {
             e.preventDefault();
             if (e.button === 0) {
@@ -449,7 +446,6 @@
             conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
         });
 
-        // --- CONTROLE DE TOQUE (CELULAR) ---
         clickOverlay.addEventListener('touchstart', (e) => {
             if (e.touches.length > 1) {
                 isMultiTouch = true;
@@ -462,7 +458,6 @@
             const touch = e.touches[0];
             const pos = getScaledCoordinates(touch);
 
-            // Clique Direito ao segurar por 500ms
             touchHoldTimer = setTimeout(() => {
                 if (!isMultiTouch) {
                     conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
@@ -504,7 +499,6 @@
             }
         });
 
-        // --- CAPTURA AVANÇADA DE TECLADO E ATALHOS (Ctrl+A, Ctrl+C, Shift+Setas) ---
         hiddenInput.addEventListener('input', (e) => {
             if (e.data) {
                 conn.send({ type: 'TEXT_INPUT', text: e.data });
@@ -515,12 +509,10 @@
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
 
-            // Previne atalhos locais do navegador (ex: Ctrl+A não seleciona o HTML local)
             if (e.ctrlKey || e.metaKey || (e.shiftKey && e.key.startsWith('Arrow'))) {
                 e.preventDefault();
             }
 
-            // Envia estado de pressão contínua para modificadoras
             if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
                 conn.send({ type: 'KEY_TOGGLE', key: e.key, state: 'down' });
             }
