@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acesso Remoto Completo</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -95,9 +95,8 @@
             max-height: 80vh;
             background-color: #000;
             border-radius: 12px;
-            overflow: hidden;
+            overflow: auto; /* Permite rolar quando der zoom no celular */
             user-select: none;
-            touch-action: none;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -121,6 +120,8 @@
             display: block;
             object-fit: contain;
         }
+        
+        /* Sem o + ou qualquer ponto na tela */
         .click-overlay {
             position: absolute;
             top: 0;
@@ -128,15 +129,15 @@
             width: 100%;
             height: 100%;
             z-index: 10;
-            cursor: crosshair;
+            cursor: none !important;
         }
 
         .floating-menu-btn {
-            position: absolute;
+            position: fixed;
             top: 15px;
             right: 15px;
-            z-index: 30;
-            background: rgba(15, 23, 42, 0.5);
+            z-index: 99999;
+            background: rgba(15, 23, 42, 0.7);
             backdrop-filter: blur(4px);
             color: #fff;
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -148,10 +149,10 @@
         }
 
         .floating-toolbar {
-            position: absolute;
+            position: fixed;
             top: 60px;
             right: 15px;
-            z-index: 30;
+            z-index: 99999;
             background: rgba(30, 41, 59, 0.95);
             padding: 10px;
             border-radius: 12px;
@@ -236,15 +237,15 @@
     <div class="video-container" id="video-box">
         <video id="video-player" autoplay playsinline muted></video>
         <div id="click-overlay" class="click-overlay" style="display: none;"></div>
+    </div>
 
-        <!-- MENU FLUTUANTE EM TELA CHEIA -->
-        <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Opções</button>
-        <div class="floating-toolbar" id="floating-toolbar">
-            <button class="btn" id="float-mouse-btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
-            <button class="btn" onclick="toggleAudio()">🔊 Alternar Áudio</button>
-            <button class="btn btn-green" onclick="focusKeyboard()">⌨️ Abrir Teclado</button>
-            <button class="btn btn-off" onclick="toggleFullscreen()">❌ Sair Tela Cheia</button>
-        </div>
+    <!-- MENU FLUTUANTE EM TELA CHEIA -->
+    <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Opções</button>
+    <div class="floating-toolbar" id="floating-toolbar">
+        <button class="btn" id="float-mouse-btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
+        <button class="btn" onclick="toggleAudio()">🔊 Alternar Áudio</button>
+        <button class="btn btn-green" onclick="focusKeyboard()">⌨️ Abrir Teclado</button>
+        <button class="btn btn-off" onclick="toggleFullscreen()">❌ Sair Tela Cheia</button>
     </div>
 
     <input type="text" id="hidden-keyboard-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -258,13 +259,12 @@
     let activeConnections = [];
     let localWs = null;
 
-    // isContinuousMouse: true = Movimento em Tempo Real (PC) | false = Toque Direto X/Y (Celular)
     let isContinuousMouse = true;
     let isAudioEnabled = true;
     let isFullscreen = false;
 
     let touchHoldTimer = null;
-    let isTouchDragging = false;
+    let isMultiTouch = false;
 
     const videoElement = document.getElementById('video-player');
     const videoBox = document.getElementById('video-box');
@@ -374,7 +374,7 @@
             const conn = peer.connect(hostId);
 
             conn.on('open', () => {
-                statusElement.innerText = "Conectado! Controle o mouse e teclado livremente.";
+                statusElement.innerText = "Conectado! Controle o computador livremente.";
                 setupControls(conn);
             });
 
@@ -399,7 +399,7 @@
     function setupControls(conn) {
         // --- EVENTOS DE COMPUTADOR (MOUSE) ---
         clickOverlay.addEventListener('mousemove', (e) => {
-            if (!isContinuousMouse) return; // No modo direto não rastreia mousemove
+            if (!isContinuousMouse) return;
             const pos = getScaledCoordinates(e);
             conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
         });
@@ -415,27 +415,34 @@
             conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
         });
 
-        // --- EVENTOS DE CELULAR (TOUCH) ---
+        // --- EVENTOS DE CELULAR (TOUCH COM SUPORTE A ZOOM DE 2 DEDOS) ---
         clickOverlay.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 0) return;
-            isTouchDragging = false;
+            if (e.touches.length > 1) {
+                isMultiTouch = true; // Se usar 2 dedos para dar Zoom, ignora cliques
+                clearTimeout(touchHoldTimer);
+                return;
+            }
+
+            isMultiTouch = false;
             const touch = e.touches[0];
             const pos = getScaledCoordinates(touch);
 
-            // Clique Direito ao segurar por 0.5s
+            // Clique Direito ao segurar
             touchHoldTimer = setTimeout(() => {
-                if (!isTouchDragging) {
+                if (!isMultiTouch) {
                     conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
                 }
             }, 500);
         });
 
         clickOverlay.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 0) return;
-            isTouchDragging = true;
-            clearTimeout(touchHoldTimer);
+            if (e.touches.length > 1) {
+                isMultiTouch = true;
+                clearTimeout(touchHoldTimer);
+                return;
+            }
 
-            if (isContinuousMouse) {
+            if (isContinuousMouse && !isMultiTouch) {
                 const touch = e.touches[0];
                 const pos = getScaledCoordinates(touch);
                 conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
@@ -444,22 +451,29 @@
 
         clickOverlay.addEventListener('touchend', (e) => {
             clearTimeout(touchHoldTimer);
-            if (!isTouchDragging) {
+            if (!isMultiTouch) {
                 const touch = e.changedTouches[0];
                 const pos = getScaledCoordinates(touch);
-                // No Toque Direto, clica EXATAMENTE nas coordenadas de onde o dedo tocou
                 conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left' });
             }
         });
 
-        // --- CONTROLE DE TECLADO ---
-        window.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
-            conn.send({ type: 'KEY_PRESS', key: e.key });
+        // --- CONTROLE DE TECLADO PT-BR (Captura Ç e Acentos) ---
+        hiddenInput.addEventListener('input', (e) => {
+            if (e.data) {
+                conn.send({ type: 'TEXT_INPUT', text: e.data });
+            }
+            hiddenInput.value = '';
         });
 
-        hiddenInput.addEventListener('keydown', (e) => {
-            conn.send({ type: 'KEY_PRESS', key: e.key });
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
+
+            // Envia teclas de controle
+            const specialKeys = ['Backspace', 'Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Delete'];
+            if (specialKeys.includes(e.key)) {
+                conn.send({ type: 'KEY_PRESS', key: e.key });
+            }
         });
     }
 
@@ -486,12 +500,10 @@
             mainBtn.classList.remove('btn-mode-direct');
             mainBtn.innerText = "🖱️ Modo: MOVIMENTO";
             if(floatBtn) floatBtn.innerText = "🖱️ Modo: MOVIMENTO";
-            clickOverlay.style.cursor = 'crosshair';
         } else {
             mainBtn.classList.add('btn-mode-direct');
             mainBtn.innerText = "👆 Modo: TOQUE DIRETO";
             if(floatBtn) floatBtn.innerText = "👆 Modo: TOQUE DIRETO";
-            clickOverlay.style.cursor = 'pointer';
         }
     }
 
@@ -532,7 +544,7 @@
 
     function focusKeyboard() {
         hiddenInput.focus();
-        statusElement.innerText = "Teclado ativo! Pode digitar.";
+        statusElement.innerText = "Teclado ativo! Pode digitar normalmente.";
     }
 
     function copyLink() {
