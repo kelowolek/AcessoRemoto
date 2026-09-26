@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Acesso Remoto Completo</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,11 +15,11 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            padding: 15px;
+            padding: 10px;
         }
         .card {
             background-color: #1e293b;
-            padding: 20px;
+            padding: 15px;
             border-radius: 16px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             width: 100%;
@@ -35,7 +35,7 @@
             gap: 10px;
             margin-bottom: 12px;
         }
-        h1 { font-size: 20px; color: #38bdf8; text-align: left; }
+        h1 { font-size: 18px; color: #38bdf8; text-align: left; }
 
         .viewer-badge {
             background-color: #0284c7;
@@ -65,7 +65,7 @@
         .toolbar {
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             margin-bottom: 12px;
             flex-wrap: wrap;
         }
@@ -73,8 +73,8 @@
             background-color: #0284c7;
             color: white;
             border: none;
-            padding: 8px 14px;
-            font-size: 13px;
+            padding: 8px 12px;
+            font-size: 12px;
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
@@ -91,18 +91,34 @@
         .video-container {
             position: relative;
             width: 100%;
-            max-height: 520px;
+            max-height: 80vh;
             background-color: #000;
             border-radius: 12px;
             overflow: hidden;
             user-select: none;
             touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
+        
+        /* MODO TELA CHEIA */
+        .fullscreen-active {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            background-color: #000 !important;
+        }
+
         video {
             width: 100%;
             height: 100%;
             display: block;
-            border-radius: 12px;
             object-fit: contain;
         }
         .click-overlay {
@@ -115,11 +131,10 @@
             cursor: crosshair;
         }
 
-        /* CURSOR VISUAL APENAS PARA SEGUIR MOVIMENTO */
         .remote-cursor {
             position: absolute;
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             background-color: #ef4444;
             border: 2px solid #ffffff;
             border-radius: 50%;
@@ -127,7 +142,38 @@
             z-index: 20;
             transform: translate(-50%, -50%);
             display: none;
-            box-shadow: 0 0 4px rgba(0,0,0,0.8);
+            box-shadow: 0 0 6px rgba(0,0,0,0.9);
+        }
+
+        /* MENU FLUTUANTE TRANSPARENTE PARA TELA CHEIA */
+        .floating-menu-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 30;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(4px);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;
+        }
+
+        .floating-toolbar {
+            position: absolute;
+            top: 60px;
+            right: 15px;
+            z-index: 30;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 10px;
+            border-radius: 12px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
         #hidden-keyboard-input {
@@ -171,8 +217,8 @@
 </head>
 <body>
 
-<div class="card">
-    <div class="header-container">
+<div class="card" id="main-card">
+    <div class="header-container" id="header-box">
         <h1 id="title">Painel de Acesso Remoto</h1>
         <div class="viewer-badge" id="viewer-badge" style="display: none;">
             <span class="live-dot"></span>
@@ -183,7 +229,8 @@
     <div id="viewer-controls" class="toolbar" style="display: none;">
         <button id="toggle-mouse-btn" class="btn" onclick="toggleMouseControl()">🖱️ Mouse: ATIVO</button>
         <button id="toggle-audio-btn" class="btn" onclick="toggleAudio()">🔊 Áudio: ATIVO</button>
-        <button id="open-keyboard-btn" class="btn btn-green" onclick="focusKeyboard()">⌨️ Abrir Teclado</button>
+        <button id="open-keyboard-btn" class="btn btn-green" onclick="focusKeyboard()">⌨️ Teclado</button>
+        <button id="fullscreen-btn" class="btn" onclick="toggleFullscreen()">🖥️ Tela Cheia</button>
     </div>
 
     <div id="host-controls">
@@ -205,6 +252,15 @@
         <video id="video-player" autoplay playsinline muted></video>
         <div id="click-overlay" class="click-overlay" style="display: none;"></div>
         <div id="remote-cursor" class="remote-cursor"></div>
+
+        <!-- BOTÃO TRANSPARENTE FLUTUANTE -->
+        <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Menu</button>
+        <div class="floating-toolbar" id="floating-toolbar">
+            <button class="btn" onclick="toggleMouseControl()">🖱️ Alternar Mouse</button>
+            <button class="btn" onclick="toggleAudio()">🔊 Alternar Áudio</button>
+            <button class="btn btn-green" onclick="focusKeyboard()">⌨️ Abrir Teclado</button>
+            <button class="btn btn-off" onclick="toggleFullscreen()">❌ Sair Tela Cheia</button>
+        </div>
     </div>
 
     <input type="text" id="hidden-keyboard-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -221,8 +277,16 @@
 
     let isMouseEnabled = true;
     let isAudioEnabled = true;
+    let isFullscreen = false;
+
+    // Posição interna do cursor (Mouse Virtual para Celular)
+    let currentX = 0;
+    let currentY = 0;
+    let touchHoldTimer = null;
+    let isTouchDragging = false;
 
     const videoElement = document.getElementById('video-player');
+    const videoBox = document.getElementById('video-box');
     const clickOverlay = document.getElementById('click-overlay');
     const remoteCursor = document.getElementById('remote-cursor');
     const hiddenInput = document.getElementById('hidden-keyboard-input');
@@ -233,6 +297,9 @@
     const viewerControls = document.getElementById('viewer-controls');
     const viewerBadge = document.getElementById('viewer-badge');
     const viewerCountElement = document.getElementById('viewer-count');
+    const floatingBtn = document.getElementById('floating-btn');
+    const floatingToolbar = document.getElementById('floating-toolbar');
+    const headerBox = document.getElementById('header-box');
 
     const urlParams = new URLSearchParams(window.location.search);
     const streamIdParam = urlParams.get('stream');
@@ -338,7 +405,6 @@
                     videoElement.srcObject = remoteStream;
                     videoElement.muted = false;
                     
-                    // Garante a reprodução para evitar tela preta
                     const playPromise = videoElement.play();
                     if (playPromise !== undefined) {
                         playPromise.catch(() => {
@@ -352,65 +418,129 @@
     }
 
     function setupControls(conn) {
-        // Envia movimento contínuo do mouse tanto no PC quanto no toque do celular
-        const sendMove = (e) => {
+        // --- CONTROLE NO PC (MOUSE DIRETO) ---
+        clickOverlay.addEventListener('mousemove', (e) => {
             if (!isMouseEnabled) return;
             const pos = getScaledCoordinates(e);
-            updateCursorPosition(e);
-            conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
-        };
-
-        clickOverlay.addEventListener('mousemove', sendMove);
-        clickOverlay.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 0) sendMove(e.touches[0]);
+            currentX = pos.x;
+            currentY = pos.y;
+            updateCursorVisual(e.clientX, e.clientY);
+            conn.send({ type: 'MOUSE_MOVE', x: currentX, y: currentY });
         });
 
-        // Clique Esquerdo
         clickOverlay.addEventListener('click', (e) => {
             if (!isMouseEnabled) return;
-            const pos = getScaledCoordinates(e);
-            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left' });
+            conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'left' });
         });
 
-        // Clique Direito
+        // Clique Direito no PC
         clickOverlay.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             if (!isMouseEnabled) return;
-            const pos = getScaledCoordinates(e);
-            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
+            conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'right' });
         });
 
-        // Captura do Teclado Físico
+        // --- CONTROLE NO CELULAR (MODO TOUCHPAD) ---
+        clickOverlay.addEventListener('touchstart', (e) => {
+            if (!isMouseEnabled || e.touches.length === 0) return;
+            isTouchDragging = false;
+            
+            // Grava a posição inicial onde o dedo encostou
+            const touch = e.touches[0];
+            const pos = getScaledCoordinates(touch);
+            currentX = pos.x;
+            currentY = pos.y;
+            updateCursorVisual(touch.clientX, touch.clientY);
+
+            // Temporizador para detectar Clique Direito se segurar o toque por 0.5s
+            touchHoldTimer = setTimeout(() => {
+                if (!isTouchDragging) {
+                    conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'right' });
+                    // Efeito visual no cursor para indicar clique direito
+                    remoteCursor.style.backgroundColor = "#3b82f6";
+                    setTimeout(() => remoteCursor.style.backgroundColor = "#ef4444", 300);
+                }
+            }, 500);
+        });
+
+        clickOverlay.addEventListener('touchmove', (e) => {
+            if (!isMouseEnabled || e.touches.length === 0) return;
+            isTouchDragging = true;
+            clearTimeout(touchHoldTimer); // Cancelar clique longo se arrastou
+
+            const touch = e.touches[0];
+            const pos = getScaledCoordinates(touch);
+            currentX = pos.x;
+            currentY = pos.y;
+
+            updateCursorVisual(touch.clientX, touch.clientY);
+            conn.send({ type: 'MOUSE_MOVE', x: currentX, y: currentY });
+        });
+
+        clickOverlay.addEventListener('touchend', (e) => {
+            clearTimeout(touchHoldTimer);
+            // Se foi apenas um toque rápido sem arrastar, faz o clique esquerdo ONDE O CURSOR PAROU
+            if (!isTouchDragging) {
+                conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'left' });
+            }
+        });
+
+        // --- TECLADO ---
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
             conn.send({ type: 'KEY_PRESS', key: e.key });
         });
 
-        // Captura de Teclado no Celular através do Input Invisível
         hiddenInput.addEventListener('keydown', (e) => {
             conn.send({ type: 'KEY_PRESS', key: e.key });
         });
     }
 
     function getScaledCoordinates(event) {
-        const rect = clickOverlay.getBoundingClientRect();
+        const rect = videoElement.getBoundingClientRect();
         const scaleX = videoElement.videoWidth / rect.width;
         const scaleY = videoElement.videoHeight / rect.height;
 
-        return {
-            x: Math.round((event.clientX - rect.left) * scaleX),
-            y: Math.round((event.clientY - rect.top) * scaleY)
-        };
+        let x = Math.round((event.clientX - rect.left) * scaleX);
+        let y = Math.round((event.clientY - rect.top) * scaleY);
+
+        // Limita os valores aos limites do monitor do host
+        x = Math.max(0, Math.min(x, videoElement.videoWidth));
+        y = Math.max(0, Math.min(y, videoElement.videoHeight));
+
+        return { x, y };
     }
 
-    function updateCursorPosition(event) {
+    function updateCursorVisual(clientX, clientY) {
         const rect = clickOverlay.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
 
         remoteCursor.style.left = `${x}px`;
         remoteCursor.style.top = `${y}px`;
         remoteCursor.style.display = 'block';
+    }
+
+    function toggleFullscreen() {
+        isFullscreen = !isFullscreen;
+        if (isFullscreen) {
+            videoBox.classList.add('fullscreen-active');
+            floatingBtn.style.display = 'block';
+            viewerControls.style.display = 'none';
+            headerBox.style.display = 'none';
+            statusElement.style.display = 'none';
+        } else {
+            videoBox.classList.remove('fullscreen-active');
+            floatingBtn.style.display = 'none';
+            floatingToolbar.style.display = 'none';
+            viewerControls.style.display = 'flex';
+            headerBox.style.display = 'flex';
+            statusElement.style.display = 'block';
+        }
+    }
+
+    function toggleFloatingMenu() {
+        floatingToolbar.style.display = (floatingToolbar.style.display === 'flex') ? 'none' : 'flex';
     }
 
     function toggleMouseControl() {
