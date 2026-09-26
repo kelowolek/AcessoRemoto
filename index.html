@@ -95,7 +95,7 @@
             max-height: 80vh;
             background-color: #000;
             border-radius: 12px;
-            overflow: auto; /* Permite rolar quando der zoom no celular */
+            overflow: auto;
             user-select: none;
             display: flex;
             justify-content: center;
@@ -121,7 +121,6 @@
             object-fit: contain;
         }
         
-        /* Sem o + ou qualquer ponto na tela */
         .click-overlay {
             position: absolute;
             top: 0;
@@ -132,33 +131,36 @@
             cursor: none !important;
         }
 
+        /* Botão Flutuante Reduzido (Canto Inferior Direito) */
         .floating-menu-btn {
             position: fixed;
-            top: 15px;
-            right: 15px;
+            bottom: 12px;
+            right: 12px;
             z-index: 99999;
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(15, 23, 42, 0.75);
             backdrop-filter: blur(4px);
             color: #fff;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
             cursor: pointer;
             display: none;
+            opacity: 0.8;
         }
+        .floating-menu-btn:hover { opacity: 1; }
 
         .floating-toolbar {
             position: fixed;
-            top: 60px;
-            right: 15px;
+            bottom: 45px;
+            right: 12px;
             z-index: 99999;
             background: rgba(30, 41, 59, 0.95);
-            padding: 10px;
-            border-radius: 12px;
+            padding: 8px;
+            border-radius: 10px;
             display: none;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
@@ -239,7 +241,7 @@
         <div id="click-overlay" class="click-overlay" style="display: none;"></div>
     </div>
 
-    <!-- MENU FLUTUANTE EM TELA CHEIA -->
+    <!-- BOTÃO FLUTUANTE DISCRETO EM TELA CHEIA (CANTO INFERIOR DIREITO) -->
     <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Opções</button>
     <div class="floating-toolbar" id="floating-toolbar">
         <button class="btn" id="float-mouse-btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
@@ -264,6 +266,7 @@
     let isFullscreen = false;
 
     let touchHoldTimer = null;
+    let lastTapTime = 0;
     let isMultiTouch = false;
 
     const videoElement = document.getElementById('video-player');
@@ -406,19 +409,24 @@
 
         clickOverlay.addEventListener('click', (e) => {
             const pos = getScaledCoordinates(e);
-            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left' });
+            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false });
+        });
+
+        clickOverlay.addEventListener('dblclick', (e) => {
+            const pos = getScaledCoordinates(e);
+            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
         });
 
         clickOverlay.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const pos = getScaledCoordinates(e);
-            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
+            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
         });
 
-        // --- EVENTOS DE CELULAR (TOUCH COM SUPORTE A ZOOM DE 2 DEDOS) ---
+        // --- EVENTOS DE CELULAR (TOUCH COM DETECÇÃO DE DUPLO CLIQUE) ---
         clickOverlay.addEventListener('touchstart', (e) => {
             if (e.touches.length > 1) {
-                isMultiTouch = true; // Se usar 2 dedos para dar Zoom, ignora cliques
+                isMultiTouch = true;
                 clearTimeout(touchHoldTimer);
                 return;
             }
@@ -427,10 +435,10 @@
             const touch = e.touches[0];
             const pos = getScaledCoordinates(touch);
 
-            // Clique Direito ao segurar
+            // Clique Direito ao segurar por 0.5s
             touchHoldTimer = setTimeout(() => {
                 if (!isMultiTouch) {
-                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
+                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
                 }
             }, 500);
         });
@@ -454,11 +462,21 @@
             if (!isMultiTouch) {
                 const touch = e.changedTouches[0];
                 const pos = getScaledCoordinates(touch);
-                conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left' });
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTapTime;
+
+                // Se der 2 toques rápidos (em menos de 300ms) = DUPLO CLIQUE
+                if (tapLength < 300 && tapLength > 0) {
+                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
+                } else {
+                    // Toque simples = CLIQUE ÚNICO (Apenas Seleciona)
+                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false });
+                }
+                lastTapTime = currentTime;
             }
         });
 
-        // --- CONTROLE DE TECLADO PT-BR (Captura Ç e Acentos) ---
+        // --- CONTROLE DE TECLADO (FÍSICO E VIRTUAL) ---
         hiddenInput.addEventListener('input', (e) => {
             if (e.data) {
                 conn.send({ type: 'TEXT_INPUT', text: e.data });
@@ -469,11 +487,8 @@
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
 
-            // Envia teclas de controle
-            const specialKeys = ['Backspace', 'Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Delete'];
-            if (specialKeys.includes(e.key)) {
-                conn.send({ type: 'KEY_PRESS', key: e.key });
-            }
+            // Envia teclas pressionadas no PC cliente
+            conn.send({ type: 'KEY_PRESS', key: e.key });
         });
     }
 
