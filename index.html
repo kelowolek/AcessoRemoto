@@ -1,217 +1,26 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acesso Remoto Não Supervisionado</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 10px;
-        }
-        .card {
-            background-color: #1e293b;
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            width: 100%;
-            max-width: 1000px;
-            text-align: center;
-        }
-        .login-box {
-            max-width: 380px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        label { text-align: left; font-size: 12px; color: #38bdf8; font-weight: bold; }
-        input {
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #475569;
-            background-color: #0f172a;
-            color: #fff;
-            font-size: 14px;
-        }
-        .btn {
-            background-color: #10b981;
-            color: white;
-            border: none;
-            padding: 12px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-        .btn:hover { background-color: #059669; }
-        .screen-container {
-            position: relative;
-            width: 100%;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            background-color: #000;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        #remote-screen {
-            width: 100%;
-            height: auto;
-            display: block;
-            user-select: none;
-            cursor: pointer;
-        }
-        #status { margin-top: 15px; font-size: 13px; color: #94a3b8; font-weight: bold; }
-    </style>
-</head>
-<body>
+function connect() {
+    let serverInput = document.getElementById('serverUrl').value.trim();
 
-<div class="card">
-    <h2>Acesso Remoto Direto</h2>
-    <br>
-
-    <!-- Formulário de Login -->
-    <div id="login-box" class="login-box">
-        <label>Link do E-mail ou IP / Servidor:</label>
-        <input type="text" id="ip-address" placeholder="ex: happy-fox-82.loca.lt ou localhost:8080" value="">
-        
-        <label>ID do Computador:</label>
-        <input type="text" id="device-id" placeholder="ID" value="Renan">
-        
-        <label>Senha de Acesso:</label>
-        <input type="password" id="device-password" placeholder="Senha" value="70032229143">
-        
-        <button class="btn" onclick="connectToDevice()">Conectar ao Computador</button>
-    </div>
-
-    <!-- Container da Imagem da Tela -->
-    <div id="screen-container" class="screen-container">
-        <img id="remote-screen" alt="Tela Remota">
-    </div>
-
-    <div id="status">Aguardando dados de conexão...</div>
-</div>
-
-<script>
-    let ws = null;
-    let lastClickTime = 0;
-    let singleTapTimer = null;
-
-    const screenImg = document.getElementById('remote-screen');
-    const screenContainer = document.getElementById('screen-container');
-    const loginBox = document.getElementById('login-box');
-    const statusEl = document.getElementById('status');
-
-    function connectToDevice() {
-        let serverUrl = document.getElementById('ip-address').value.trim();
-        const deviceId = document.getElementById('device-id').value.trim();
-        const password = document.getElementById('device-password').value.trim();
-
-        if (!serverUrl) {
-            statusEl.innerText = "❌ Por favor, informe o link ou IP no primeiro campo.";
-            return;
-        }
-
-        // Limpa prefixos de HTTP/HTTPS se colados acidentalmente
-        serverUrl = serverUrl.replace('https://', '').replace('http://', '');
-
-        // Trata o protocolo do WebSocket automaticamente:
-        // Se for LocalTunnel (.loca.lt) ou domínio remoto, usa wss:// (seguro)
-        // Se for IP local ou localhost, usa ws://
-        if (!serverUrl.startsWith('ws://') && !serverUrl.startsWith('wss://')) {
-            if (serverUrl.includes('loca.lt') || serverUrl.includes('ngrok') || !serverUrl.includes('localhost')) {
-                serverUrl = 'wss://' + serverUrl;
-            } else {
-                serverUrl = 'ws://' + serverUrl;
-            }
-        }
-
-        statusEl.innerText = "Conectando ao servidor (" + serverUrl + ")...";
-        
-        try {
-            ws = new WebSocket(serverUrl);
-        } catch(e) {
-            statusEl.innerText = "❌ Erro no formato do endereço de IP/Servidor: " + e.message;
-            return;
-        }
-
-        ws.onopen = () => {
-            statusEl.innerText = "Conectado ao servidor! Enviando senha...";
-            ws.send(JSON.stringify({ type: 'AUTH', deviceId: deviceId, password: password }));
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'AUTH_SUCCESS') {
-                loginBox.style.display = 'none';
-                screenContainer.style.display = 'flex';
-                statusEl.innerText = "Sessão Ativa - Transmitindo Tela!";
-                setupControls();
-            } else if (data.type === 'AUTH_FAILED') {
-                statusEl.innerText = "❌ " + data.reason;
-            } else if (data.type === 'FRAME') {
-                screenImg.src = data.image;
-            }
-        };
-
-        ws.onerror = (err) => { 
-            statusEl.innerText = "❌ Falha ao conectar. Verifique se o endereço está correto e o app.js está rodando."; 
-        };
-        ws.onclose = () => { 
-            statusEl.innerText = "⚠️ Conexão com o computador encerrada."; 
-        };
+    // Se o usuário digitou com https:// ou http://, converte para wss:// ou ws://
+    if (serverInput.startsWith('https://')) {
+        serverInput = serverInput.replace('https://', 'wss://');
+    } else if (serverInput.startsWith('http://')) {
+        serverInput = serverInput.replace('http://', 'ws://');
+    } else if (!serverInput.startsWith('ws://') && !serverInput.startsWith('wss://')) {
+        serverInput = 'wss://' + serverInput;
     }
 
-    function setupControls() {
-        screenImg.addEventListener('click', (e) => {
-            const pos = getScaledCoordinates(e);
-            const now = Date.now();
+    console.log("Conectando em:", serverInput);
+    const ws = new WebSocket(serverInput);
 
-            if (now - lastClickTime < 280) {
-                clearTimeout(singleTapTimer);
-                ws.send(JSON.stringify({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true }));
-                lastClickTime = 0;
-            } else {
-                lastClickTime = now;
-                singleTapTimer = setTimeout(() => {
-                    ws.send(JSON.stringify({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false }));
-                    lastClickTime = 0;
-                }, 280);
-            }
-        });
+    ws.onopen = () => {
+        console.log("WebSocket Aberto! Enviando autenticação...");
+        ws.send(JSON.stringify({
+            type: 'AUTH',
+            deviceId: document.getElementById('deviceId').value,
+            password: document.getElementById('accessPassword').value
+        }));
+    };
 
-        screenImg.addEventListener('mousemove', (e) => {
-            const pos = getScaledCoordinates(e);
-            ws.send(JSON.stringify({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y }));
-        });
-
-        window.addEventListener('keydown', (e) => {
-            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-            ws.send(JSON.stringify({ type: 'KEY_PRESS', key: e.key }));
-        });
-    }
-
-    function getScaledCoordinates(event) {
-        const rect = screenImg.getBoundingClientRect();
-        const scaleX = screenImg.naturalWidth / rect.width;
-        const scaleY = screenImg.naturalHeight / rect.height;
-
-        return {
-            x: Math.round((event.clientX - rect.left) * scaleX),
-            y: Math.round((event.clientY - rect.top) * scaleY)
-        };
-    }
-</script>
-
-</body>
-</html>
+    // restante da sua lógica de recebimento das imagens (ws.onmessage)...
+}
