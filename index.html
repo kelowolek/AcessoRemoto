@@ -33,6 +33,7 @@
             flex-direction: column;
             gap: 12px;
         }
+        label { text-align: left; font-size: 12px; color: #38bdf8; font-weight: bold; }
         input {
             padding: 10px;
             border-radius: 8px;
@@ -45,10 +46,11 @@
             background-color: #10b981;
             color: white;
             border: none;
-            padding: 10px;
+            padding: 12px;
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
+            margin-top: 8px;
         }
         .btn:hover { background-color: #059669; }
         .screen-container {
@@ -66,8 +68,9 @@
             height: auto;
             display: block;
             user-select: none;
+            cursor: pointer;
         }
-        #status { margin-top: 12px; font-size: 13px; color: #94a3b8; }
+        #status { margin-top: 15px; font-size: 13px; color: #94a3b8; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -76,15 +79,21 @@
     <h2>Acesso Remoto Direto</h2>
     <br>
 
-    <!-- Tela de Login de Dispositivo -->
+    <!-- Formutário de Login -->
     <div id="login-box" class="login-box">
-        <input type="text" id="ip-address" placeholder="IP do Computador (ex: localhost ou IP)" value="localhost">
-        <input type="text" id="device-id" placeholder="ID do Computador" value="escritorio-01">
-        <input type="password" id="device-password" placeholder="Senha de Acesso" value="12345678password">
-        <button class="btn" onclick="connectToDevice()">Conectar ao PC</button>
+        <label>IP / Servidor + Porta:</label>
+        <input type="text" id="ip-address" placeholder="ex: localhost:8080 ou 192.168.1.15:8080" value="localhost:8080">
+        
+        <label>ID do Computador:</label>
+        <input type="text" id="device-id" placeholder="ID" value="Renan">
+        
+        <label>Senha de Acesso:</label>
+        <input type="password" id="device-password" placeholder="Senha" value="70032229143">
+        
+        <button class="btn" onclick="connectToDevice()">Conectar ao Computador</button>
     </div>
 
-    <!-- Tela da Transmission -->
+    <!-- Container da Imagem da Tela -->
     <div id="screen-container" class="screen-container">
         <img id="remote-screen" alt="Tela Remota">
     </div>
@@ -103,15 +112,25 @@
     const statusEl = document.getElementById('status');
 
     function connectToDevice() {
-        const ip = document.getElementById('ip-address').value;
-        const deviceId = document.getElementById('device-id').value;
-        const password = document.getElementById('device-password').value;
+        let serverUrl = document.getElementById('ip-address').value.trim();
+        const deviceId = document.getElementById('device-id').value.trim();
+        const password = document.getElementById('device-password').value.trim();
 
-        statusEl.innerText = "Conectando ao servidor...";
-        ws = new WebSocket(`ws://${ip}:8080`);
+        if (!serverUrl.startsWith('ws://') && !serverUrl.startsWith('wss://')) {
+            serverUrl = 'ws://' + serverUrl;
+        }
+
+        statusEl.innerText = "Conectando ao servidor (" + serverUrl + ")...";
+        
+        try {
+            ws = new WebSocket(serverUrl);
+        } catch(e) {
+            statusEl.innerText = "Erro no formato do endereço de IP/Porta.";
+            return;
+        }
 
         ws.onopen = () => {
-            statusEl.innerText = "Autenticando...";
+            statusEl.innerText = "Conectado! Enviando autenticação...";
             ws.send(JSON.stringify({ type: 'AUTH', deviceId: deviceId, password: password }));
         };
 
@@ -121,21 +140,24 @@
             if (data.type === 'AUTH_SUCCESS') {
                 loginBox.style.display = 'none';
                 screenContainer.style.display = 'flex';
-                statusEl.innerText = "Conectado e Transmitindo em tempo real!";
+                statusEl.innerText = "Sessão Ativa - Transmitindo Tela!";
                 setupControls();
             } else if (data.type === 'AUTH_FAILED') {
-                statusEl.innerText = "Erro de autenticação: " + data.reason;
+                statusEl.innerText = "❌ " + data.reason;
             } else if (data.type === 'FRAME') {
                 screenImg.src = data.image;
             }
         };
 
-        ws.onerror = () => { statusEl.innerText = "Falha de conexão com o computador remoto."; };
-        ws.onclose = () => { statusEl.innerText = "Conexão encerrada."; };
+        ws.onerror = (err) => { 
+            statusEl.innerText = "❌ Falha ao conectar no servidor. O app.js está rodando?"; 
+        };
+        ws.onclose = () => { 
+            statusEl.innerText = "⚠️ Conexão com o computador encerrada."; 
+        };
     }
 
     function setupControls() {
-        // Envio do Clique do Mouse com Correção do Duplo Clique
         screenImg.addEventListener('click', (e) => {
             const pos = getScaledCoordinates(e);
             const now = Date.now();
@@ -159,6 +181,7 @@
         });
 
         window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
             ws.send(JSON.stringify({ type: 'KEY_PRESS', key: e.key }));
         });
     }
