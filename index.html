@@ -72,14 +72,34 @@
             margin-bottom: 15px;
             line-height: 1.5;
         }
-        video {
+
+        /* Container do Vídeo + Camada do Mouse */
+        .video-container {
+            position: relative;
             width: 100%;
             max-height: 480px;
+            margin-top: 10px;
             background-color: #000;
             border-radius: 12px;
-            margin-top: 10px;
-            cursor: pointer;
+            overflow: hidden;
         }
+        video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 12px;
+        }
+        /* Capa transparente para capturar cliques de controle */
+        .click-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            cursor: crosshair;
+        }
+
         .btn {
             background-color: #0284c7;
             color: white;
@@ -153,14 +173,17 @@
             <button class="btn" onclick="copyLink()">Copiar Link</button>
         </div>
         
-        <!-- Seção de Envio por WhatsApp -->
         <div class="share-row" style="margin-top: 12px; border-top: 1px solid #334155; padding-top: 12px;">
             <input type="tel" id="phone-number" placeholder="DDD + Número (ex: 11999998888)">
             <button class="btn btn-whatsapp" onclick="sendWhatsApp()">💬 Enviar no WhatsApp</button>
         </div>
     </div>
 
-    <video id="video-player" autoplay playsinline controls></video>
+    <div class="video-container">
+        <video id="video-player" autoplay playsinline></video>
+        <!-- Camada transparente de captura de cliques -->
+        <div id="click-overlay" class="click-overlay" style="display: none;"></div>
+    </div>
 
     <div id="status" class="status">Aguardando ação...</div>
 </div>
@@ -169,9 +192,10 @@
     let peer = null;
     let combinedStream = null;
     let activeConnections = [];
-    let localWs = null; // Conexão com o app.js local no Windows
+    let localWs = null;
 
     const videoElement = document.getElementById('video-player');
+    const clickOverlay = document.getElementById('click-overlay');
     const statusElement = document.getElementById('status');
     const shareContainer = document.getElementById('share-container');
     const shareInput = document.getElementById('share-link');
@@ -190,11 +214,12 @@
         instructionsBox.style.display = 'none';
         viewerControls.style.display = 'block';
         viewerBadge.style.display = 'inline-flex';
-        document.getElementById('title').innerText = "Assistindo à Transmissão (Controle Remoto Ativo)";
+        clickOverlay.style.display = 'block'; // Ativa a camada de captura de cliques
+        document.getElementById('title').innerText = "Controle Remoto Ativo";
         statusElement.innerText = "Conectando ao transmissor...";
         connectToStream(streamIdParam);
     } else {
-        // MODO TRANSMISSOR: Tenta conectar com o app.js local no Windows
+        // MODO TRANSMISSOR
         connectLocalWebSocket();
     }
 
@@ -255,7 +280,6 @@
                 peer.call(conn.peer, combinedStream);
                 updateViewerCount();
 
-                // Recebe os eventos de MOUSE do cliente e repassa ao app.js local
                 conn.on('data', (data) => {
                     if (data && (data.type === 'MOUSE_CLICK' || data.type === 'MOUSE_MOVE')) {
                         if (localWs && localWs.readyState === WebSocket.OPEN) {
@@ -302,9 +326,7 @@
             const conn = peer.connect(hostId);
 
             conn.on('open', () => {
-                statusElement.innerText = "Conectado ao transmissor. Você pode clicar no vídeo para controlar!";
-                
-                // Configura a captura de cliques do Cliente sobre o Vídeo
+                statusElement.innerText = "Conectado ao transmissor. Clique na tela para enviar comandos de mouse!";
                 setupMouseController(conn);
             });
 
@@ -329,41 +351,38 @@
         });
     }
 
-    // Função que calcula a posição x,y exata do clique no vídeo do cliente
+    // Captura os cliques diretamente na camada 'clickOverlay'
     function setupMouseController(conn) {
-        videoElement.addEventListener('click', (event) => {
-            const rect = videoElement.getBoundingClientRect();
-            const scaleX = videoElement.videoWidth / rect.width;
-            const scaleY = videoElement.videoHeight / rect.height;
-
-            const realX = Math.round((event.clientX - rect.left) * scaleX);
-            const realY = Math.round((event.clientY - rect.top) * scaleY);
-
-            conn.send({
-                type: 'MOUSE_CLICK',
-                x: realX,
-                y: realY,
-                button: 'left'
-            });
+        // Clique com botão esquerdo
+        clickOverlay.addEventListener('click', (event) => {
+            sendMouseEvent(event, conn, 'left');
         });
 
-        // Clique com botão direito no vídeo
-        videoElement.addEventListener('contextmenu', (event) => {
+        // Clique com botão direito
+        clickOverlay.addEventListener('contextmenu', (event) => {
             event.preventDefault();
-            const rect = videoElement.getBoundingClientRect();
-            const scaleX = videoElement.videoWidth / rect.width;
-            const scaleY = videoElement.videoHeight / rect.height;
+            sendMouseEvent(event, conn, 'right');
+        });
+    }
 
-            const realX = Math.round((event.clientX - rect.left) * scaleX);
-            const realY = Math.round((event.clientY - rect.top) * scaleY);
+    function sendMouseEvent(event, conn, buttonType) {
+        const rect = clickOverlay.getBoundingClientRect();
+        
+        // Calcula a posição proporcional do clique em relação ao tamanho real do vídeo transmitido
+        const scaleX = videoElement.videoWidth / rect.width;
+        const scaleY = videoElement.videoHeight / rect.height;
 
+        const realX = Math.round((event.clientX - rect.left) * scaleX);
+        const realY = Math.round((event.clientY - rect.top) * scaleY);
+
+        if (!isNaN(realX) && !isNaN(realY)) {
             conn.send({
                 type: 'MOUSE_CLICK',
                 x: realX,
                 y: realY,
-                button: 'right'
+                button: buttonType
             });
-        });
+        }
     }
 
     function enableAudio() {
@@ -380,7 +399,6 @@
         alert("Link copiado com sucesso!");
     }
 
-    // Função para abrir o WhatsApp Web/App preenchido com a mensagem e o link
     function sendWhatsApp() {
         const phoneInput = document.getElementById('phone-number').value.replace(/\D/g, '');
         const shareLink = shareInput.value;
@@ -395,10 +413,8 @@
 
         let whatsappUrl = '';
         if (phoneInput) {
-            // Envia para o número digitado
             whatsappUrl = `https://api.whatsapp.com/send?phone=55${phoneInput}&text=${encodedMessage}`;
         } else {
-            // Abre o WhatsApp para escolher o contato manualmente
             whatsappUrl = `https://api.whatsapp.com/send?text=${encodedMessage}`;
         }
 
