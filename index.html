@@ -101,7 +101,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            cursor: none !important; /* Oculta o cursor local */
+            cursor: none !important;
         }
         
         .fullscreen-active {
@@ -136,7 +136,7 @@
             z-index: 10;
             user-select: none;
             -webkit-user-drag: none;
-            cursor: none !important; /* Oculta o cursor local sobre a camada de interatividade */
+            cursor: none !important;
         }
 
         .floating-menu-btn {
@@ -271,10 +271,10 @@
     let isAudioEnabled = false;
     let isFullscreen = false;
 
-    let isMouseDown = false;
     let touchHoldTimer = null;
     let singleTapTimer = null;
-    let tapCount = 0;
+    let clickCount = 0;
+    let lastClickTime = 0;
     let isMultiTouch = false;
 
     const videoElement = document.getElementById('video-player');
@@ -405,35 +405,31 @@
     function setupControls(conn) {
         clickOverlay.addEventListener('dragstart', (e) => e.preventDefault());
 
-        clickOverlay.addEventListener('mousedown', (e) => {
+        // Controle Unificado de Cliques do Mouse (Debounce)
+        clickOverlay.addEventListener('click', (e) => {
             e.preventDefault();
-            if (e.button === 0) {
-                isMouseDown = true;
-                const pos = getScaledCoordinates(e);
-                conn.send({ type: 'MOUSE_DOWN', x: pos.x, y: pos.y, button: 'left' });
+            const pos = getScaledCoordinates(e);
+            const now = Date.now();
+
+            if (now - lastClickTime < 280) {
+                // Se o clique foi rápido o suficiente, é Duplo Clique
+                clearTimeout(singleTapTimer);
+                conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
+                lastClickTime = 0; // Reseta timer
+            } else {
+                // Aguarda para ver se vem outro clique ou se é apenas 1 clique simples
+                lastClickTime = now;
+                singleTapTimer = setTimeout(() => {
+                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false });
+                    lastClickTime = 0;
+                }, 280);
             }
         });
 
         clickOverlay.addEventListener('mousemove', (e) => {
-            e.preventDefault();
-            if (!isContinuousMouse && !isMouseDown) return;
+            if (!isContinuousMouse) return;
             const pos = getScaledCoordinates(e);
             conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
-        });
-
-        clickOverlay.addEventListener('mouseup', (e) => {
-            e.preventDefault();
-            if (e.button === 0) {
-                isMouseDown = false;
-                const pos = getScaledCoordinates(e);
-                conn.send({ type: 'MOUSE_UP', x: pos.x, y: pos.y, button: 'left' });
-            }
-        });
-
-        clickOverlay.addEventListener('dblclick', (e) => {
-            e.preventDefault();
-            const pos = getScaledCoordinates(e);
-            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
         });
 
         clickOverlay.addEventListener('contextmenu', (e) => {
@@ -442,6 +438,7 @@
             conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right', double: false });
         });
 
+        // Suporte para Dispositivos Mobile (Touch)
         clickOverlay.addEventListener('touchstart', (e) => {
             if (e.touches.length > 1) {
                 isMultiTouch = true;
@@ -481,17 +478,17 @@
 
             const touch = e.changedTouches[0];
             const pos = getScaledCoordinates(touch);
-            tapCount++;
+            clickCount++;
 
-            if (tapCount === 1) {
+            if (clickCount === 1) {
                 singleTapTimer = setTimeout(() => {
                     conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: false });
-                    tapCount = 0;
-                }, 220);
-            } else if (tapCount === 2) {
+                    clickCount = 0;
+                }, 280);
+            } else if (clickCount === 2) {
                 clearTimeout(singleTapTimer);
                 conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left', double: true });
-                tapCount = 0;
+                clickCount = 0;
             }
         });
 
