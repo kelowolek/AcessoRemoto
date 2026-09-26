@@ -84,6 +84,7 @@
             gap: 6px;
         }
         .btn:hover { background-color: #0369a1; }
+        .btn-mode-direct { background-color: #eab308 !important; color: #000 !important; }
         .btn-off { background-color: #64748b !important; }
         .btn-green { background-color: #10b981; }
         .btn-whatsapp { background-color: #25d366; }
@@ -102,7 +103,6 @@
             align-items: center;
         }
         
-        /* MODO TELA CHEIA */
         .fullscreen-active {
             position: fixed !important;
             top: 0 !important;
@@ -131,33 +131,18 @@
             cursor: crosshair;
         }
 
-        .remote-cursor {
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            background-color: #ef4444;
-            border: 2px solid #ffffff;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 20;
-            transform: translate(-50%, -50%);
-            display: none;
-            box-shadow: 0 0 6px rgba(0,0,0,0.9);
-        }
-
-        /* MENU FLUTUANTE TRANSPARENTE PARA TELA CHEIA */
         .floating-menu-btn {
             position: absolute;
             top: 15px;
             right: 15px;
             z-index: 30;
-            background: rgba(15, 23, 42, 0.4);
+            background: rgba(15, 23, 42, 0.5);
             backdrop-filter: blur(4px);
             color: #fff;
             border: 1px solid rgba(255, 255, 255, 0.2);
             padding: 8px 12px;
             border-radius: 20px;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
             display: none;
         }
@@ -167,7 +152,7 @@
             top: 60px;
             right: 15px;
             z-index: 30;
-            background: rgba(30, 41, 59, 0.9);
+            background: rgba(30, 41, 59, 0.95);
             padding: 10px;
             border-radius: 12px;
             display: none;
@@ -227,7 +212,7 @@
     </div>
 
     <div id="viewer-controls" class="toolbar" style="display: none;">
-        <button id="toggle-mouse-btn" class="btn" onclick="toggleMouseControl()">🖱️ Mouse: ATIVO</button>
+        <button id="toggle-mouse-btn" class="btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
         <button id="toggle-audio-btn" class="btn" onclick="toggleAudio()">🔊 Áudio: ATIVO</button>
         <button id="open-keyboard-btn" class="btn btn-green" onclick="focusKeyboard()">⌨️ Teclado</button>
         <button id="fullscreen-btn" class="btn" onclick="toggleFullscreen()">🖥️ Tela Cheia</button>
@@ -251,12 +236,11 @@
     <div class="video-container" id="video-box">
         <video id="video-player" autoplay playsinline muted></video>
         <div id="click-overlay" class="click-overlay" style="display: none;"></div>
-        <div id="remote-cursor" class="remote-cursor"></div>
 
-        <!-- BOTÃO TRANSPARENTE FLUTUANTE -->
-        <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Menu</button>
+        <!-- MENU FLUTUANTE EM TELA CHEIA -->
+        <button class="floating-menu-btn" id="floating-btn" onclick="toggleFloatingMenu()">⚙️ Opções</button>
         <div class="floating-toolbar" id="floating-toolbar">
-            <button class="btn" onclick="toggleMouseControl()">🖱️ Alternar Mouse</button>
+            <button class="btn" id="float-mouse-btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
             <button class="btn" onclick="toggleAudio()">🔊 Alternar Áudio</button>
             <button class="btn btn-green" onclick="focusKeyboard()">⌨️ Abrir Teclado</button>
             <button class="btn btn-off" onclick="toggleFullscreen()">❌ Sair Tela Cheia</button>
@@ -273,22 +257,18 @@
     let combinedStream = null;
     let activeConnections = [];
     let localWs = null;
-    let activeConn = null;
 
-    let isMouseEnabled = true;
+    // isContinuousMouse: true = Movimento em Tempo Real (PC) | false = Toque Direto X/Y (Celular)
+    let isContinuousMouse = true;
     let isAudioEnabled = true;
     let isFullscreen = false;
 
-    // Posição interna do cursor (Mouse Virtual para Celular)
-    let currentX = 0;
-    let currentY = 0;
     let touchHoldTimer = null;
     let isTouchDragging = false;
 
     const videoElement = document.getElementById('video-player');
     const videoBox = document.getElementById('video-box');
     const clickOverlay = document.getElementById('click-overlay');
-    const remoteCursor = document.getElementById('remote-cursor');
     const hiddenInput = document.getElementById('hidden-keyboard-input');
     const statusElement = document.getElementById('status');
     const shareContainer = document.getElementById('share-container');
@@ -392,7 +372,6 @@
 
         peer.on('open', () => {
             const conn = peer.connect(hostId);
-            activeConn = conn;
 
             conn.on('open', () => {
                 statusElement.innerText = "Conectado! Controle o mouse e teclado livremente.";
@@ -418,74 +397,62 @@
     }
 
     function setupControls(conn) {
-        // --- CONTROLE NO PC (MOUSE DIRETO) ---
+        // --- EVENTOS DE COMPUTADOR (MOUSE) ---
         clickOverlay.addEventListener('mousemove', (e) => {
-            if (!isMouseEnabled) return;
+            if (!isContinuousMouse) return; // No modo direto não rastreia mousemove
             const pos = getScaledCoordinates(e);
-            currentX = pos.x;
-            currentY = pos.y;
-            updateCursorVisual(e.clientX, e.clientY);
-            conn.send({ type: 'MOUSE_MOVE', x: currentX, y: currentY });
+            conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
         });
 
         clickOverlay.addEventListener('click', (e) => {
-            if (!isMouseEnabled) return;
-            conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'left' });
+            const pos = getScaledCoordinates(e);
+            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left' });
         });
 
-        // Clique Direito no PC
         clickOverlay.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            if (!isMouseEnabled) return;
-            conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'right' });
+            const pos = getScaledCoordinates(e);
+            conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
         });
 
-        // --- CONTROLE NO CELULAR (MODO TOUCHPAD) ---
+        // --- EVENTOS DE CELULAR (TOUCH) ---
         clickOverlay.addEventListener('touchstart', (e) => {
-            if (!isMouseEnabled || e.touches.length === 0) return;
+            if (e.touches.length === 0) return;
             isTouchDragging = false;
-            
-            // Grava a posição inicial onde o dedo encostou
             const touch = e.touches[0];
             const pos = getScaledCoordinates(touch);
-            currentX = pos.x;
-            currentY = pos.y;
-            updateCursorVisual(touch.clientX, touch.clientY);
 
-            // Temporizador para detectar Clique Direito se segurar o toque por 0.5s
+            // Clique Direito ao segurar por 0.5s
             touchHoldTimer = setTimeout(() => {
                 if (!isTouchDragging) {
-                    conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'right' });
-                    // Efeito visual no cursor para indicar clique direito
-                    remoteCursor.style.backgroundColor = "#3b82f6";
-                    setTimeout(() => remoteCursor.style.backgroundColor = "#ef4444", 300);
+                    conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
                 }
             }, 500);
         });
 
         clickOverlay.addEventListener('touchmove', (e) => {
-            if (!isMouseEnabled || e.touches.length === 0) return;
+            if (e.touches.length === 0) return;
             isTouchDragging = true;
-            clearTimeout(touchHoldTimer); // Cancelar clique longo se arrastou
+            clearTimeout(touchHoldTimer);
 
-            const touch = e.touches[0];
-            const pos = getScaledCoordinates(touch);
-            currentX = pos.x;
-            currentY = pos.y;
-
-            updateCursorVisual(touch.clientX, touch.clientY);
-            conn.send({ type: 'MOUSE_MOVE', x: currentX, y: currentY });
+            if (isContinuousMouse) {
+                const touch = e.touches[0];
+                const pos = getScaledCoordinates(touch);
+                conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
+            }
         });
 
         clickOverlay.addEventListener('touchend', (e) => {
             clearTimeout(touchHoldTimer);
-            // Se foi apenas um toque rápido sem arrastar, faz o clique esquerdo ONDE O CURSOR PAROU
             if (!isTouchDragging) {
-                conn.send({ type: 'MOUSE_CLICK', x: currentX, y: currentY, button: 'left' });
+                const touch = e.changedTouches[0];
+                const pos = getScaledCoordinates(touch);
+                // No Toque Direto, clica EXATAMENTE nas coordenadas de onde o dedo tocou
+                conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'left' });
             }
         });
 
-        // --- TECLADO ---
+        // --- CONTROLE DE TECLADO ---
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
             conn.send({ type: 'KEY_PRESS', key: e.key });
@@ -504,21 +471,28 @@
         let x = Math.round((event.clientX - rect.left) * scaleX);
         let y = Math.round((event.clientY - rect.top) * scaleY);
 
-        // Limita os valores aos limites do monitor do host
         x = Math.max(0, Math.min(x, videoElement.videoWidth));
         y = Math.max(0, Math.min(y, videoElement.videoHeight));
 
         return { x, y };
     }
 
-    function updateCursorVisual(clientX, clientY) {
-        const rect = clickOverlay.getBoundingClientRect();
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
+    function toggleMouseControl() {
+        isContinuousMouse = !isContinuousMouse;
+        const mainBtn = document.getElementById('toggle-mouse-btn');
+        const floatBtn = document.getElementById('float-mouse-btn');
 
-        remoteCursor.style.left = `${x}px`;
-        remoteCursor.style.top = `${y}px`;
-        remoteCursor.style.display = 'block';
+        if (isContinuousMouse) {
+            mainBtn.classList.remove('btn-mode-direct');
+            mainBtn.innerText = "🖱️ Modo: MOVIMENTO";
+            if(floatBtn) floatBtn.innerText = "🖱️ Modo: MOVIMENTO";
+            clickOverlay.style.cursor = 'crosshair';
+        } else {
+            mainBtn.classList.add('btn-mode-direct');
+            mainBtn.innerText = "👆 Modo: TOQUE DIRETO";
+            if(floatBtn) floatBtn.innerText = "👆 Modo: TOQUE DIRETO";
+            clickOverlay.style.cursor = 'pointer';
+        }
     }
 
     function toggleFullscreen() {
@@ -541,21 +515,6 @@
 
     function toggleFloatingMenu() {
         floatingToolbar.style.display = (floatingToolbar.style.display === 'flex') ? 'none' : 'flex';
-    }
-
-    function toggleMouseControl() {
-        isMouseEnabled = !isMouseEnabled;
-        const btn = document.getElementById('toggle-mouse-btn');
-        if (isMouseEnabled) {
-            btn.classList.remove('btn-off');
-            btn.innerText = "🖱️ Mouse: ATIVO";
-            clickOverlay.style.cursor = 'crosshair';
-        } else {
-            btn.classList.add('btn-off');
-            btn.innerText = "🖱️ Mouse: DESATIVADO";
-            remoteCursor.style.display = 'none';
-            clickOverlay.style.cursor = 'default';
-        }
     }
 
     function toggleAudio() {
