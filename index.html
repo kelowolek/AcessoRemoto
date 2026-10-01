@@ -28,7 +28,6 @@
         }
         h1 { font-size: 20px; color: #38bdf8; margin-bottom: 15px; }
 
-        /* Login Box */
         .login-box {
             display: flex;
             flex-direction: column;
@@ -57,6 +56,7 @@
             transition: background 0.2s;
         }
         .btn:hover { background-color: #0369a1; }
+        .btn-green { background-color: #10b981; }
         
         .video-container {
             position: relative;
@@ -93,7 +93,8 @@
         <hr style="border: 0; border-top: 1px solid #334155; margin: 5px 0;">
         <input type="text" id="host-id" placeholder="ID Fixo do Computador">
         <input type="password" id="host-pass" placeholder="Senha do Computador">
-        <button class="btn" onclick="autenticarEConectar()">Conectar ao Host</button>
+        <button class="btn" onclick="autenticarEConectar()">Conectar como Cliente</button>
+        <button class="btn btn-green" onclick="iniciarHost()">Transmitir como Host</button>
     </div>
 
     <!-- TELA DE TRANSMISSÃO -->
@@ -110,49 +111,103 @@
 
 <script>
     let peer = null;
-    const hiddenInput = document.getElementById('hidden-keyboard-input');
+    let localWs = null;
+    let activeStream = null;
     const statusElement = document.getElementById('status');
     const videoElement = document.getElementById('video-player');
     const clickOverlay = document.getElementById('click-overlay');
 
-    function autenticarEConectar() {
+    function validarLoginWeb() {
         const webUser = document.getElementById('web-user').value.trim();
         const webPass = document.getElementById('web-pass').value.trim();
+        if (webUser !== 'FOCOS' || webPass !== '@Focos5040') {
+            alert('Usuário ou Senha do sistema incorretos!');
+            return false;
+        }
+        return true;
+    }
+
+    // MODO HOST (Quem compartilha a tela)
+    async function iniciarHost() {
+        if (!validarLoginWeb()) return;
         const hostId = document.getElementById('host-id').value.trim();
         const hostPass = document.getElementById('host-pass').value.trim();
 
-        // Validação de segurança da página Web
-        if (webUser !== 'FOCOS' || webPass !== '@Focos5040') {
-            alert('Usuário ou Senha do sistema incorretos!');
+        if (!hostId || !hostPass) {
+            alert('Informe o ID e a Senha para criar o Host!');
             return;
         }
+
+        try {
+            activeStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            videoElement.srcObject = activeStream;
+
+            // Conecta no WebSocket local rodando pelo app.js
+            try {
+                localWs = new WebSocket('ws://localhost:8080');
+            } catch(e){}
+
+            peer = new Peer(hostId);
+
+            peer.on('open', () => {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('remote-section').style.display = 'block';
+                statusElement.innerText = `🟢 Host Ativo! Aguardando conexões para o ID: ${hostId}`;
+            });
+
+            peer.on('connection', (conn) => {
+                conn.on('data', (data) => {
+                    if (data.type === 'AUTH_HOST') {
+                        if (data.password === hostPass) {
+                            conn.send({ type: 'AUTH_OK' });
+                            peer.call(conn.peer, activeStream);
+                            statusElement.innerText = "✅ Cliente conectado e autorizado!";
+                        } else {
+                            conn.send({ type: 'AUTH_FAIL' });
+                        }
+                    } else if (localWs && localWs.readyState === WebSocket.OPEN) {
+                        // Repassa os comandos de mouse/teclado para o app.js local
+                        localWs.send(JSON.stringify(data));
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                alert("Erro ao criar ID de Host (pode ser que já esteja em uso).");
+            });
+
+        } catch (e) {
+            alert("Seleção de tela cancelada.");
+        }
+    }
+
+    // MODO CLIENTE (Quem controla)
+    function autenticarEConectar() {
+        if (!validarLoginWeb()) return;
+        const hostId = document.getElementById('host-id').value.trim();
+        const hostPass = document.getElementById('host-pass').value.trim();
 
         if (!hostId || !hostPass) {
             alert('Informe o ID e a Senha do computador remoto!');
             return;
         }
 
-        statusElement.innerText = "Autenticado na web. Conectando ao computador remoto...";
-        document.getElementById('login-section').style.display = 'none';
-        document.getElementById('remote-section').style.display = 'block';
-
-        conectarAoHost(hostId, hostPass);
-    }
-
-    function conectarAoHost(hostId, hostPass) {
+        statusElement.innerText = "Conectando ao computador remoto...";
+        
         peer = new Peer();
 
         peer.on('open', () => {
             const conn = peer.connect(hostId);
 
             conn.on('open', () => {
-                // Envia senha do host para validação
                 conn.send({ type: 'AUTH_HOST', password: hostPass });
             });
 
             conn.on('data', (data) => {
                 if (data.type === 'AUTH_OK') {
-                    statusElement.innerText = "Acesso autorizado! Transmissão iniciada.";
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('remote-section').style.display = 'block';
+                    statusElement.innerText = "Acesso autorizado! Transmissão em andamento.";
                     setupControls(conn);
                 } else if (data.type === 'AUTH_FAIL') {
                     alert('Senha do computador remoto está incorreta!');
