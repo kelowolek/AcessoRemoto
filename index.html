@@ -19,21 +19,30 @@
         }
         .card {
             background-color: #1e293b;
-            padding: 20px;
+            padding: 15px;
             border-radius: 16px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             width: 100%;
-            max-width: 900px;
+            max-width: 1000px;
             text-align: center;
+            position: relative;
         }
-        h1 { font-size: 20px; color: #38bdf8; margin-bottom: 15px; }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        h1 { font-size: 18px; color: #38bdf8; text-align: left; }
 
         .login-box {
             display: flex;
             flex-direction: column;
             gap: 12px;
             max-width: 320px;
-            margin: 0 auto;
+            margin: 20px auto;
         }
         input[type="text"], input[type="password"] {
             padding: 10px;
@@ -44,20 +53,33 @@
             font-size: 14px;
             text-align: center;
         }
+
+        .toolbar {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
         .btn {
             background-color: #0284c7;
             color: white;
             border: none;
-            padding: 10px 14px;
-            font-size: 14px;
+            padding: 8px 12px;
+            font-size: 12px;
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
             transition: background 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
         .btn:hover { background-color: #0369a1; }
+        .btn-mode-direct { background-color: #eab308 !important; color: #000 !important; }
+        .btn-off { background-color: #64748b !important; }
         .btn-green { background-color: #10b981; }
-        
+
         .video-container {
             position: relative;
             width: 100%;
@@ -65,135 +87,144 @@
             background-color: #000;
             border-radius: 12px;
             overflow: hidden;
+            user-select: none;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-top: 15px;
         }
-        video { width: 100%; height: 100%; object-fit: contain; }
-        .click-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10;
+        .fullscreen-active {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100vw !important; height: 100vh !important;
+            max-height: 100vh !important; z-index: 9999 !important;
+            border-radius: 0 !important; background-color: #000 !important;
         }
-        .status { margin-top: 12px; font-size: 13px; color: #94a3b8; }
-        #hidden-keyboard-input { position: absolute; opacity: 0; top: -1000px; }
+        video { width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
+        .click-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+
+        #hidden-keyboard-input { position: absolute; opacity: 0; top: -1000px; left: -1000px; }
+        .status { margin-top: 10px; font-size: 12px; color: #94a3b8; }
     </style>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-<div class="card">
-    <h1>Acesso Remoto FOCOS</h1>
+<div class="card" id="main-card">
+    <div class="header-container" id="header-box">
+        <h1 id="title">Acesso Remoto FOCOS</h1>
+    </div>
 
-    <!-- TELA DE LOGIN -->
+    <!-- TELA DE LOGIN DO CLIENTE -->
     <div id="login-section" class="login-box">
         <input type="text" id="web-user" placeholder="Usuário">
-        <input type="password" id="web-pass" placeholder="Senha da Página">
+        <input type="password" id="web-pass" placeholder="Senha do Sistema">
         <hr style="border: 0; border-top: 1px solid #334155; margin: 5px 0;">
-        <input type="text" id="host-id" placeholder="ID Fixo do Computador">
+        <input type="text" id="host-id" placeholder="ID do Computador">
         <input type="password" id="host-pass" placeholder="Senha do Computador">
-        <button class="btn" onclick="autenticarEConectar()">Conectar como Cliente</button>
-        <button class="btn btn-green" onclick="iniciarHost()">Transmitir como Host</button>
+        <button class="btn btn-green" onclick="autenticarEConectar()">🚀 Acessar Computador</button>
     </div>
 
-    <!-- TELA DE TRANSMISSÃO -->
-    <div id="remote-section" style="display: none;">
-        <div class="video-container">
-            <video id="video-player" autoplay playsinline muted></video>
-            <div id="click-overlay" class="click-overlay"></div>
-        </div>
+    <!-- PAINEL DE CONTROLES DO CLIENTE -->
+    <div id="viewer-controls" class="toolbar" style="display: none;">
+        <button id="toggle-mouse-btn" class="btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
+        <button id="toggle-audio-btn" class="btn btn-off" onclick="toggleAudio()">🔇 Áudio: MUTADO</button>
+        <button id="open-keyboard-btn" class="btn btn-green" onclick="focusKeyboard()">⌨️ Teclado</button>
+        <button id="fullscreen-btn" class="btn" onclick="toggleFullscreen()">🖥️ Tela Cheia</button>
     </div>
 
-    <input type="text" id="hidden-keyboard-input" autocomplete="off">
-    <div id="status" class="status">Digite os dados para acessar...</div>
+    <!-- MODO HOST (INICIAR TRANSMISSÃO) -->
+    <div id="host-controls" style="display: none; margin-bottom: 12px;">
+        <button id="start-btn" class="btn btn-green" onclick="iniciarHost()">🚀 Iniciar Transmissão da Tela</button>
+    </div>
+
+    <!-- CONTÊINER DE VÍDEO -->
+    <div class="video-container" id="video-box" style="display: none;">
+        <video id="video-player" autoplay playsinline muted></video>
+        <div id="click-overlay" class="click-overlay"></div>
+    </div>
+
+    <input type="text" id="hidden-keyboard-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <div id="status" class="status">Aguardando login...</div>
 </div>
 
 <script>
     let peer = null;
     let localWs = null;
-    let activeStream = null;
-    const statusElement = document.getElementById('status');
-    const videoElement = document.getElementById('video-player');
-    const clickOverlay = document.getElementById('click-overlay');
+    let isContinuousMouse = true;
+    let isAudioEnabled = false;
+    let isFullscreen = false;
 
-    function validarLoginWeb() {
-        const webUser = document.getElementById('web-user').value.trim();
-        const webPass = document.getElementById('web-pass').value.trim();
-        if (webUser !== 'FOCOS' || webPass !== '@Focos5040') {
-            alert('Usuário ou Senha do sistema incorretos!');
-            return false;
-        }
-        return true;
+    const videoElement = document.getElementById('video-player');
+    const videoBox = document.getElementById('video-box');
+    const clickOverlay = document.getElementById('click-overlay');
+    const hiddenInput = document.getElementById('hidden-keyboard-input');
+    const statusElement = document.getElementById('status');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const hostParam = urlParams.get('host');
+    const passParam = urlParams.get('pass');
+
+    // Se for aberto pelo app.js local para transmitir
+    if (hostParam) {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('host-controls').style.display = 'block';
+        statusElement.innerText = `Pronto para transmitir o ID: ${hostParam}. Clique no botão acima.`;
     }
 
-    // MODO HOST (Quem compartilha a tela)
+    // MODO HOST
     async function iniciarHost() {
-        if (!validarLoginWeb()) return;
-        const hostId = document.getElementById('host-id').value.trim();
-        const hostPass = document.getElementById('host-pass').value.trim();
-
-        if (!hostId || !hostPass) {
-            alert('Informe o ID e a Senha para criar o Host!');
-            return;
-        }
-
         try {
-            activeStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-            videoElement.srcObject = activeStream;
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            videoElement.srcObject = stream;
+            videoBox.style.display = 'flex';
 
-            // Conecta no WebSocket local rodando pelo app.js
-            try {
-                localWs = new WebSocket('ws://localhost:8080');
-            } catch(e){}
+            try { localWs = new WebSocket('ws://localhost:8080'); } catch (e) {}
 
-            peer = new Peer(hostId);
+            peer = new Peer(hostParam);
 
             peer.on('open', () => {
-                document.getElementById('login-section').style.display = 'none';
-                document.getElementById('remote-section').style.display = 'block';
-                statusElement.innerText = `🟢 Host Ativo! Aguardando conexões para o ID: ${hostId}`;
+                document.getElementById('start-btn').disabled = true;
+                statusElement.innerText = `🟢 Host no ar! Aguardando o cliente conectar no ID: ${hostParam}`;
             });
 
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
                     if (data.type === 'AUTH_HOST') {
-                        if (data.password === hostPass) {
+                        if (data.password === passParam) {
                             conn.send({ type: 'AUTH_OK' });
-                            peer.call(conn.peer, activeStream);
+                            peer.call(conn.peer, stream);
                             statusElement.innerText = "✅ Cliente conectado e autorizado!";
                         } else {
                             conn.send({ type: 'AUTH_FAIL' });
                         }
                     } else if (localWs && localWs.readyState === WebSocket.OPEN) {
-                        // Repassa os comandos de mouse/teclado para o app.js local
                         localWs.send(JSON.stringify(data));
                     }
                 });
             });
-
-            peer.on('error', (err) => {
-                alert("Erro ao criar ID de Host (pode ser que já esteja em uso).");
-            });
-
         } catch (e) {
-            alert("Seleção de tela cancelada.");
+            statusElement.innerText = "Seleção de tela cancelada.";
         }
     }
 
-    // MODO CLIENTE (Quem controla)
+    // MODO CLIENTE
     function autenticarEConectar() {
-        if (!validarLoginWeb()) return;
+        const webUser = document.getElementById('web-user').value.trim();
+        const webPass = document.getElementById('web-pass').value.trim();
         const hostId = document.getElementById('host-id').value.trim();
         const hostPass = document.getElementById('host-pass').value.trim();
 
-        if (!hostId || !hostPass) {
-            alert('Informe o ID e a Senha do computador remoto!');
+        if (webUser !== 'FOCOS' || webPass !== '@Focos5040') {
+            alert('Usuário ou Senha do sistema incorretos!');
             return;
         }
 
-        statusElement.innerText = "Conectando ao computador remoto...";
-        
+        if (!hostId || !hostPass) {
+            alert('Preencha o ID e a Senha do Computador!');
+            return;
+        }
+
+        statusElement.innerText = "Conectando ao host...";
         peer = new Peer();
 
         peer.on('open', () => {
@@ -206,11 +237,12 @@
             conn.on('data', (data) => {
                 if (data.type === 'AUTH_OK') {
                     document.getElementById('login-section').style.display = 'none';
-                    document.getElementById('remote-section').style.display = 'block';
+                    document.getElementById('viewer-controls').style.display = 'flex';
+                    videoBox.style.display = 'flex';
                     statusElement.innerText = "Acesso autorizado! Transmissão em andamento.";
                     setupControls(conn);
                 } else if (data.type === 'AUTH_FAIL') {
-                    alert('Senha do computador remoto está incorreta!');
+                    alert('Senha do computador incorreta!');
                     location.reload();
                 }
             });
@@ -232,6 +264,7 @@
         });
 
         clickOverlay.addEventListener('mousemove', (e) => {
+            if (!isContinuousMouse) return;
             const pos = getScaledCoordinates(e);
             conn.send({ type: 'MOUSE_MOVE', x: pos.x, y: pos.y });
         });
@@ -242,8 +275,21 @@
             conn.send({ type: 'MOUSE_CLICK', x: pos.x, y: pos.y, button: 'right' });
         });
 
+        hiddenInput.addEventListener('input', (e) => {
+            if (e.data) conn.send({ type: 'TEXT_INPUT', text: e.data });
+            hiddenInput.value = '';
+        });
+
         window.addEventListener('keydown', (e) => {
-            conn.send({ type: 'KEY_PRESS', key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey });
+            if (e.target.tagName === 'INPUT' && e.target.id !== 'hidden-keyboard-input') return;
+            conn.send({
+                type: 'KEY_PRESS',
+                key: e.key,
+                ctrlKey: e.ctrlKey,
+                altKey: e.altKey,
+                shiftKey: e.shiftKey,
+                metaKey: e.metaKey
+            });
         });
     }
 
@@ -255,6 +301,31 @@
             x: Math.round((e.clientX - rect.left) * scaleX),
             y: Math.round((e.clientY - rect.top) * scaleY)
         };
+    }
+
+    function toggleMouseControl() {
+        isContinuousMouse = !isContinuousMouse;
+        const mainBtn = document.getElementById('toggle-mouse-btn');
+        mainBtn.innerText = isContinuousMouse ? "🖱️ Modo: MOVIMENTO" : "👆 Modo: TOQUE DIRETO";
+        mainBtn.classList.toggle('btn-mode-direct', !isContinuousMouse);
+    }
+
+    function toggleFullscreen() {
+        isFullscreen = !isFullscreen;
+        videoBox.classList.toggle('fullscreen-active', isFullscreen);
+    }
+
+    function toggleAudio() {
+        isAudioEnabled = !isAudioEnabled;
+        videoElement.muted = !isAudioEnabled;
+        const btn = document.getElementById('toggle-audio-btn');
+        btn.innerText = isAudioEnabled ? "🔊 Áudio: ATIVO" : "🔇 Áudio: MUTADO";
+        btn.classList.toggle('btn-off', !isAudioEnabled);
+    }
+
+    function focusKeyboard() {
+        hiddenInput.focus();
+        statusElement.innerText = "Teclado ativo!";
     }
 </script>
 
