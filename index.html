@@ -10,98 +10,38 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #0f172a;
             color: #f8fafc;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 10px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; padding: 10px;
         }
         .card {
-            background-color: #1e293b;
-            padding: 15px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            width: 100%;
-            max-width: 1000px;
-            text-align: center;
-            position: relative;
+            background-color: #1e293b; padding: 15px; border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 1000px; text-align: center;
         }
-        .header-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-        h1 { font-size: 18px; color: #38bdf8; text-align: left; }
-
-        .login-box {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-width: 320px;
-            margin: 20px auto;
-        }
+        .login-box { display: flex; flex-direction: column; gap: 12px; max-width: 320px; margin: 20px auto; }
         input[type="text"], input[type="password"] {
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #475569;
-            background-color: #0f172a;
-            color: #fff;
-            font-size: 14px;
-            text-align: center;
+            padding: 10px; border-radius: 8px; border: 1px solid #475569;
+            background-color: #0f172a; color: #fff; font-size: 14px; text-align: center;
         }
-
-        .toolbar {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
+        .toolbar { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .btn {
-            background-color: #0284c7;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            font-size: 12px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+            background-color: #0284c7; color: white; border: none; padding: 8px 12px;
+            font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer;
         }
-        .btn:hover { background-color: #0369a1; }
+        .btn-green { background-color: #10b981; }
         .btn-mode-direct { background-color: #eab308 !important; color: #000 !important; }
         .btn-off { background-color: #64748b !important; }
-        .btn-green { background-color: #10b981; }
 
         .video-container {
-            position: relative;
-            width: 100%;
-            max-height: 80vh;
-            background-color: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            user-select: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: relative; width: 100%; max-height: 80vh; background-color: #000;
+            border-radius: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center;
         }
         .fullscreen-active {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 100vw !important; height: 100vh !important;
-            max-height: 100vh !important; z-index: 9999 !important;
-            border-radius: 0 !important; background-color: #000 !important;
+            position: fixed !important; top: 0 !important; left: 0 !important;
+            width: 100vw !important; height: 100vh !important; max-height: 100vh !important;
+            z-index: 9999 !important; border-radius: 0 !important;
         }
         video { width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
-        .click-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
-
+        .click-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; cursor: crosshair; }
         #hidden-keyboard-input { position: absolute; opacity: 0; top: -1000px; left: -1000px; }
         .status { margin-top: 10px; font-size: 12px; color: #94a3b8; }
     </style>
@@ -109,10 +49,8 @@
 </head>
 <body>
 
-<div class="card" id="main-card">
-    <div class="header-container" id="header-box">
-        <h1 id="title">Acesso Remoto FOCOS</h1>
-    </div>
+<div class="card">
+    <h1 style="font-size: 18px; color: #38bdf8; margin-bottom: 10px;">Acesso Remoto FOCOS</h1>
 
     <!-- TELA DE LOGIN DO CLIENTE -->
     <div id="login-section" class="login-box">
@@ -124,7 +62,7 @@
         <button class="btn btn-green" onclick="autenticarEConectar()">🚀 Acessar Computador</button>
     </div>
 
-    <!-- PAINEL DE CONTROLES DO CLIENTE -->
+    <!-- CONTROLES DO CLIENTE -->
     <div id="viewer-controls" class="toolbar" style="display: none;">
         <button id="toggle-mouse-btn" class="btn" onclick="toggleMouseControl()">🖱️ Modo: MOVIMENTO</button>
         <button id="toggle-audio-btn" class="btn btn-off" onclick="toggleAudio()">🔇 Áudio: MUTADO</button>
@@ -132,19 +70,18 @@
         <button id="fullscreen-btn" class="btn" onclick="toggleFullscreen()">🖥️ Tela Cheia</button>
     </div>
 
-    <!-- MODO HOST (INICIAR TRANSMISSÃO) -->
+    <!-- TRANSMISSÃO DO HOST -->
     <div id="host-controls" style="display: none; margin-bottom: 12px;">
         <button id="start-btn" class="btn btn-green" onclick="iniciarHost()">🚀 Iniciar Transmissão da Tela</button>
     </div>
 
-    <!-- CONTÊINER DE VÍDEO -->
     <div class="video-container" id="video-box" style="display: none;">
         <video id="video-player" autoplay playsinline muted></video>
         <div id="click-overlay" class="click-overlay"></div>
     </div>
 
     <input type="text" id="hidden-keyboard-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
-    <div id="status" class="status">Aguardando login...</div>
+    <div id="status" class="status">Aguardando ação...</div>
 </div>
 
 <script>
@@ -164,41 +101,47 @@
     const hostParam = urlParams.get('host');
     const passParam = urlParams.get('pass');
 
-    // Se for aberto pelo app.js local para transmitir
-    if (hostParam) {
+    if (hostParam && passParam) {
         document.getElementById('login-section').style.display = 'none';
         document.getElementById('host-controls').style.display = 'block';
-        statusElement.innerText = `Pronto para transmitir o ID: ${hostParam}. Clique no botão acima.`;
+        statusElement.innerText = `Pronto para transmitir o ID: ${hostParam}`;
     }
 
-    // MODO HOST
+    // MODO HOST (NO PC QUE SERÁ CONTROLADO)
     async function iniciarHost() {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
             videoElement.srcObject = stream;
             videoBox.style.display = 'flex';
 
-            try { localWs = new WebSocket('ws://localhost:8080'); } catch (e) {}
+            // Conecta no WebSocket do app.js local
+            localWs = new WebSocket('ws://localhost:8080');
+            localWs.onopen = () => console.log("🟢 Conectado ao app.js local");
+            localWs.onerror = () => alert("Aviso: app.js não encontrado rodando neste PC.");
 
             peer = new Peer(hostParam);
 
             peer.on('open', () => {
                 document.getElementById('start-btn').disabled = true;
-                statusElement.innerText = `🟢 Host no ar! Aguardando o cliente conectar no ID: ${hostParam}`;
+                statusElement.innerText = `🟢 Transmitindo no ID: ${hostParam}. Aguardando cliente...`;
             });
 
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
+                    // Valida senha enviada pelo cliente
                     if (data.type === 'AUTH_HOST') {
                         if (data.password === passParam) {
                             conn.send({ type: 'AUTH_OK' });
                             peer.call(conn.peer, stream);
-                            statusElement.innerText = "✅ Cliente conectado e autorizado!";
+                            statusElement.innerText = "✅ Cliente autenticado e conectado!";
                         } else {
                             conn.send({ type: 'AUTH_FAIL' });
                         }
-                    } else if (localWs && localWs.readyState === WebSocket.OPEN) {
-                        localWs.send(JSON.stringify(data));
+                    } else {
+                        // Repassa QUALQUER comando do cliente para o app.js local do Host
+                        if (localWs && localWs.readyState === WebSocket.OPEN) {
+                            localWs.send(JSON.stringify(data));
+                        }
                     }
                 });
             });
@@ -207,7 +150,7 @@
         }
     }
 
-    // MODO CLIENTE
+    // MODO CLIENTE (QUEM VAI CONTROLAR O PC REMOTO)
     function autenticarEConectar() {
         const webUser = document.getElementById('web-user').value.trim();
         const webPass = document.getElementById('web-pass').value.trim();
@@ -239,7 +182,7 @@
                     document.getElementById('login-section').style.display = 'none';
                     document.getElementById('viewer-controls').style.display = 'flex';
                     videoBox.style.display = 'flex';
-                    statusElement.innerText = "Acesso autorizado! Transmissão em andamento.";
+                    statusElement.innerText = "Acesso autorizado com sucesso!";
                     setupControls(conn);
                 } else if (data.type === 'AUTH_FAIL') {
                     alert('Senha do computador incorreta!');
@@ -257,6 +200,7 @@
         });
     }
 
+    // EVENTOS DE COMANDO DO CLIENTE
     function setupControls(conn) {
         clickOverlay.addEventListener('click', (e) => {
             const pos = getScaledCoordinates(e);
@@ -287,8 +231,7 @@
                 key: e.key,
                 ctrlKey: e.ctrlKey,
                 altKey: e.altKey,
-                shiftKey: e.shiftKey,
-                metaKey: e.metaKey
+                shiftKey: e.shiftKey
             });
         });
     }
@@ -325,7 +268,7 @@
 
     function focusKeyboard() {
         hiddenInput.focus();
-        statusElement.innerText = "Teclado ativo!";
+        statusElement.innerText = "Teclado ativo! Pode digitar.";
     }
 </script>
 
